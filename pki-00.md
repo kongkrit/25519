@@ -1,0 +1,35 @@
+```
+write a single html JS (no css) with specification and 3 sections
+
+Title and h1: “Web Crypto PKI Demo”
+
+Specifications:
+
+- never show the specifications in the generated code.
+- separate DOM handling from internal logic. Minimal DOM wire-up to call internal logic. Make internal logic pure JS without messing with DOM.
+- every textarea has button#copy to its right to copy its content to clipboard.
+- always line break from one sub-section to the next.
+- each subsection is independent, and only use parameters specified in that subsection to generate output.
+- for each subsection, if there’s insufficiency or unused parameters, give warning and explanation.
+- give only terse, short text for explanation, headings, etc.
+
+Section 1 — generate keys:
+
+- button#generateX25519 generates a key pair for X25519
+- button#generateEd25519 generates a key pair for Ed25519
+- show private key of X25519 in textarea#privatekeyX25519
+- show public key of X25519 in textarea#publickeyX25519. Ensure no private info leakage.
+- show private key of Ed25519 in textarea#privatekeyEd25519
+- show public key of Ed25519 in textarea#publickeyEd25519. Ensure no private info leakage.
+
+Section 2 — encrypt and sign message:
+
+- textarea#message editable with default text “Hello asymmetric encryption”
+- button#sign #message by #privatekeyEd25519 to generate textarea#signature
+- button#encrypt #message with #publickeyX25519 and show result in textarea#encrypted
+
+Section 3 — verify and decrypt:
+
+- button#verify uses #message, #publickeyEd25519, and #signature. give out original message and signature in textarea#verified. Give validity status of #signature against #message in textlabel#valid-message-signature
+- button#decrypt uses #encrypted and #privatekeyX25519 and show result in textarea#decrypted.
+```
