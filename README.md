@@ -1,4 +1,4 @@
-# pki25519
+# 25519
 
 Private-Public Keygen for X25519 (encrypt) and Ed25519 (signature)
 
