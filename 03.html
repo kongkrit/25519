@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Web Crypto ECDH25519 Demo</title>
+<style>
+:root{
+  --bg:#202020; --fg:#e0e0e0; --pad:1rem; --ta-bg:#2e2e2e; --ta-fg:#dedede; --ta-bd:#484848;
+  --btn-bg:#3a3a3a; --btn-fg:#dedede; --btn-pad-y:0.8rem; --btn-pad-x:1.6rem; --btn-hover:#555555;
+  --radius:0.4rem; --fs:1.4rem;
+}
+body { font-family: monospace, sans-serif; text-align: center; margin: 0; }
+body { background-color: var(--bg); color: var(--fg); padding: 1rem; }
+textarea { background-color: var(--ta-bg); color: var(--ta-fg); border-color: var(--ta-bd); 
+           width: 100%; box-sizing: border-box; overflow-y: auto; resize: none; padding: 1rem; border-radius: 0.4rem; }
+button { background-color: var(--btn-bg); color: var(--btn-fg); font-family: monospace, sans-serif font-size: 1.4rem; 
+         border-radius: 0.4rem; padding: 0.8rem 1.6rem; cursor: pointer; transition: background-color 0.2s ease; }
+button:hover { background-color: var(--btn-hover); }
+label { display: block; text-align: left; padding-left: 0.4rem; }
+h2 { font-weight: normal; margin-top: 0.6rem; margin-bottom: 0.6rem; }
+</style>
+</head>
+<body>
+<h1>Web Crypto ECDH25519 Demo</h1>
+
+<!-- Section 1 — generate keys -->
+<section id="sec1">
+  <h2>1) Generate Ed25519 keys</h2>
+  <button id="generateEd25519">Generate</button>
+  <br/>
+  <label for="privatekeyEd25519">Private key (PKCS8, base64)</label>
+  <textarea id="privatekeyEd25519" rows="2" readonly></textarea>
+  <button data-copy="#privatekeyEd25519" id="copy">Copy</button>
+
+  <label for="publickeyEd25519">Public key (raw 32B, base64)</label>
+  <textarea id="publickeyEd25519" rows="2" readonly></textarea>
+  <button data-copy="#publickeyEd25519" id="copy">Copy</button>
+
+  <label id="warn-sec1"></label>
+</section>
+
+<br/>
+
+<!-- Section 2 — sign message -->
+<section id="sec2">
+  <h2>2) Sign message (Ed25519)</h2>
+  <label for="message">Message</label>
+  <textarea id="message" rows="4">Hello message signature</textarea>
+  <button data-copy="#message" id="copy">Copy</button><br>
+
+  <button id="sign">Sign</button>
+
+  <label for="signature">Signature (base64)</label>
+  <textarea id="signature" rows="2" readonly></textarea>
+  <button data-copy="#signature" id="copy">Copy</button>
+
+  <label id="warn-sec2"></label>
+</section>
+
+<br/>
+
+<!-- Section 3 — verify and decrypt -->
+<section id="sec3">
+  <h2>3) Verify and decrypt</h2>
+  <button id="verify">Verify</button>
+
+  <label for="verified">Verified output</label>
+  <textarea id="verified" rows="7" readonly></textarea>
+  <button data-copy="#verified" id="copy">Copy</button>
+
+  <label id="valid-message-signature"></label>
+  <label id="warn-sec3"></label>
+</section>
+
+<script>
+/* ---------- Pure logic ---------- */
+const cryptoCore = (() => {
+  const b64 = {
+    enc: (bytes) => {
+      let bin = "";
+      bytes.forEach(b => bin += String.fromCharCode(b));
+      return btoa(bin);
+    },
+    dec: (b64s) => {
+      const bin = atob(b64s);
+      const out = new Uint8Array(bin.length);
+      for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+  };
+
+  async function genEd25519() {
+    const kp = await crypto.subtle.generateKey({name:"Ed25519"}, true, ["sign","verify"]);
+    const rawPub = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+    return {
+      publicRawB64: b64.enc(rawPub),
+      privatePkcs8B64: b64.enc(pkcs8)
+    };
+  }
+
+  async function importPrivEd25519(pkcs8b64) {
+    const pkcs8 = b64.dec(pkcs8b64.trim());
+    return crypto.subtle.importKey("pkcs8", pkcs8, {name:"Ed25519"}, false, ["sign"]);
+  }
+
+  async function importPubEd25519(rawb64) {
+    const raw = b64.dec(rawb64.trim());
+    return crypto.subtle.importKey("raw", raw, {name:"Ed25519"}, false, ["verify"]);
+  }
+
+  async function sign(privPkcs8B64, msgStr) {
+    const key = await importPrivEd25519(privPkcs8B64);
+    const msg = new TextEncoder().encode(msgStr);
+    const sig = new Uint8Array(await crypto.subtle.sign({name:"Ed25519"}, key, msg));
+    return b64.enc(sig);
+  }
+
+  async function verify(pubRawB64, msgStr, sigB64) {
+    const key = await importPubEd25519(pubRawB64);
+    const msg = new TextEncoder().encode(msgStr);
+    const sig = b64.dec(sigB64.trim());
+    return crypto.subtle.verify({name:"Ed25519"}, key, sig, msg);
+  }
+
+  return { genEd25519, sign, verify };
+})();
+
+/* ---------- Minimal DOM wire-up ---------- */
+function setText(id, v){ document.querySelector(id).value = v; }
+function getVal(id){ return document.querySelector(id).value || ""; }
+function setLabel(id, v){ document.querySelector(id).textContent = v; }
+
+async function onGenerate() {
+  setLabel("#warn-sec1", "");
+  try{
+    const k = await cryptoCore.genEd25519();
+    setText("#privatekeyEd25519", k.privatePkcs8B64);
+    setText("#publickeyEd25519", k.publicRawB64);
+  }catch(e){
+    setLabel("#warn-sec1","Error: cannot generate keys.");
+  }
+}
+
+async function onSign() {
+  setLabel("#warn-sec2", "");
+  const priv = getVal("#privatekeyEd25519").trim();
+  const msg = getVal("#message");
+  if(!priv){ setLabel("#warn-sec2","Insufficient: missing private key."); return; }
+  if(!msg){ setLabel("#warn-sec2","Insufficient: empty message."); return; }
+  try{
+    const sigB64 = await cryptoCore.sign(priv, msg);
+    setText("#signature", sigB64);
+  }catch(e){
+    setLabel("#warn-sec2","Error: signing failed. Check private key format (PKCS8 base64).");
+  }
+}
+
+async function onVerify() {
+  setLabel("#valid-message-signature", "");
+  setLabel("#warn-sec3", "");
+  const pub = getVal("#publickeyEd25519").trim();
+  const msg = getVal("#message");
+  const sig = getVal("#signature").trim();
+
+  let warn = [];
+  if(!pub) warn.push("missing public key");
+  if(!msg) warn.push("empty message");
+  if(!sig) warn.push("missing signature");
+  if(warn.length){ setLabel("#warn-sec3","Insufficient: "+warn.join(", ")+"."); return; }
+
+  // Unused parameter note: no decryption with Ed25519.
+  setLabel("#warn-sec3","Note: Ed25519 has no decryption. Verify only.");
+
+  try{
+    const ok = await cryptoCore.verify(pub, msg, sig);
+    setText("#verified", "message:\n"+msg+"\n\nsignature (base64):\n"+sig);
+    setLabel("#valid-message-signature", ok ? "Valid" : "Invalid");
+  }catch(e){
+    setLabel("#valid-message-signature","Invalid");
+    setLabel("#warn-sec3","Error: verification failed. Check public key (raw base64) and signature.");
+  }
+}
+
+function wireCopy() {
+  document.body.addEventListener("click", async (ev)=>{
+    const btn = ev.target.closest('button[id="copy"]');
+    if(!btn) return;
+    const sel = btn.getAttribute("data-copy");
+    const ta = document.querySelector(sel);
+    if(!ta) return;
+    try{
+      await navigator.clipboard.writeText(ta.value);
+    }catch(e){}
+  });
+}
+
+document.getElementById("generateEd25519").addEventListener("click", onGenerate);
+document.getElementById("sign").addEventListener("click", onSign);
+document.getElementById("verify").addEventListener("click", onVerify);
+wireCopy();
+</script>
+</body>
+</html>
