@@ -17,6 +17,7 @@
       --btn-bc: #555555;
       --btn-pad-y: 0.8rem;
       --btn-pad-x: 1.6rem;
+      --file-btn-min-width: 10rem;
       --rad: 0.4rem;
       --fs: 1rem;
       --fs-btn: 1rem;
@@ -28,10 +29,11 @@
     body { background-color: var(--bg); color: var(--fg); padding: var(--pad); }
     textarea { background-color: var(--ta-bg); color: var(--ta-fg); border-color: var(--ta-bc); font-size: var(--fs);
                width: 100%; box-sizing: border-box; overflow-y: auto; resize: none; padding: 1rem; border-radius: var(--rad); }
-    button, input { background-color: var(--btn-bg); color: var(--btn-fg); font-family: monospace, sans-serif; font-size: var(--fs-btn);
+    button, input, .file-btn { background-color: var(--btn-bg); color: var(--btn-fg); font-family: monospace, sans-serif; font-size: var(--fs-btn);
              border-color: var(--btn-bc);
              border-radius: var(--rad); padding: var(--btn-pad-y) var(--btn-pad-x); cursor: pointer; transition: background-color 0.2s ease; }
-    button:hover { background-color: #555555; }
+    .file-btn { display: inline-block; width: auto; min-width: var(--file-btn-min-width); text-align: center; }
+    button:hover, .file-btn:hover { background-color: #555555; }
     label { display: block; text-align: left; padding-left: var(--plabel); font-size: var(--fs);}
     h2 { font-weight: normal; margin-top: var(--hspace); margin-bottom: var(--hspace); }
   </style>
@@ -77,8 +79,13 @@
     <p></p>
 
     <label for="file-input">File</label>
-    <input id="file-input" type="file" />
+    <label class="file-btn">
+      Choose File
+      <input id="file-input" type="file" hidden>
+    </label>
     <label id="upload-info"></label>
+    
+    <p></p>
 
     <label for="file-signature">File Signature (base64)</label>
     <textarea id="file-signature" rows="2" placeholder="base64 signature"></textarea>
@@ -243,7 +250,7 @@
         const sig = new Uint8Array(b64.dec(sigB64));
         const ok = await verifyBytesEd25519(pub, enc, sig);
         const okMessage = ok ? 'Signature is valid' : 'ERROR: INVALID SIGNATURE';
-        set('verified-text', `message:\n${msg}\n---\nsignature: ${sigB64}\n---\n${okMessage}`);
+        set('verified-text', `message:\n${msg}\n---\nEd25519 public key: ${pubB64}\n---\nsignature: ${sigB64}\n---\n${okMessage}`);
         $('valid-text-message-signature').textContent = ok ? 'valid' : 'invalid';
       } catch {
         warn('warn-sec3', 'verify error');
