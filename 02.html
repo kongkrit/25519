@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Web Crypto ECDH25519 Demo</title>
+<style>
+  :root {
+    /* sizing */
+    --fs-base: 1rem;
+    --space-1: 0.5rem;
+    --space-2: 1rem;
+    --space-3: 1.5rem;
+    --br: 0.75rem;
+    --bw: 0.125rem;
+
+    /* colors */
+    --bg: #202020;
+    --fg: #e0e0e0;
+    --ta-bg: #2e2e2e;
+    --ta-fg: #dedede;
+    --ta-bd: #484848;
+    --btn-bg: #3a3a3a;
+    --btn-bg-hover: #555555;
+  }
+
+  /* base */
+  html { font-size: 16px; }
+  body { font-family: monospace, sans-serif; text-align: center; margin: 0; background-color: var(--bg); color: var(--fg); }
+  h1 { margin-block: var(--space-2); font-size: clamp(1.25rem, 2vw, 1.5rem); }
+  h2 { margin-block: var(--space-2) var(--space-1); font-size: 1rem; }
+
+  /* layout */
+  .wrap { max-width: 60rem; margin-inline: auto; padding: var(--space-2); display: grid; gap: var(--space-3); }
+  section { border: var(--bw) solid var(--ta-bd); border-radius: var(--br); padding: var(--space-2); }
+  .row { display: grid; gap: var(--space-1); margin-block-end: var(--space-2); }
+  .row label { justify-self: start; font-size: 0.9rem; }
+
+  textarea {
+    width: 100%;
+    min-height: 6rem;
+    background-color: var(--ta-bg);
+    color: var(--ta-fg);
+    border: var(--bw) solid var(--ta-bd);
+    border-radius: var(--br);
+    padding: var(--space-1);
+    resize: vertical;
+  }
+
+  button {
+    justify-self: end;
+    background-color: var(--btn-bg);
+    color: var(--fg);
+    border: var(--bw) solid var(--ta-bd);
+    border-radius: var(--br);
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+  }
+  button:hover { background-color: var(--btn-bg-hover); transition: background-color 0.2s ease; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+  .note { font-size: 0.85rem; opacity: 0.9; text-align: left; }
+
+  .warn { color: #ffb3b3; }     /* terse warnings */
+  .ok { color: #b3ffb3; }        /* terse status */
+  .status-line { text-align: left; margin-block: var(--space-1) 0; }
+
+  /* place copy buttons under each textarea per spec */
+  .with-copy { display: grid; gap: var(--space-1); }
+  .with-copy button { justify-self: start; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Web Crypto ECDH25519 Demo</h1>
+
+    <section id="sec1">
+      <h2>1. generate keys</h2>
+
+      <div class="grid-2">
+        <div>
+          <div class="row with-copy">
+            <label for="privatekeyX25519">X25519 private key (JWK)</label>
+            <textarea id="privatekeyX25519" spellcheck="false"></textarea>
+            <button id="copy" data-for="privatekeyX25519">copy</button>
+          </div>
+          <div class="row with-copy">
+            <label for="publickeyX25519">X25519 public key (JWK)</label>
+            <textarea id="publickeyX25519" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="publickeyX25519">copy</button>
+          </div>
+          <button id="generateX25519">generate X25519</button>
+          <div class="status-line"><span id="warn-x25519" class="warn"></span></div>
+        </div>
+
+        <div>
+          <div class="row with-copy">
+            <label for="privatekeyEd25519">Ed25519 private key (JWK)</label>
+            <textarea id="privatekeyEd25519" spellcheck="false"></textarea>
+            <button id="copy" data-for="privatekeyEd25519">copy</button>
+          </div>
+          <div class="row with-copy">
+            <label for="publickeyEd25519">Ed25519 public key (JWK)</label>
+            <textarea id="publickeyEd25519" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="publickeyEd25519">copy</button>
+          </div>
+          <button id="generateEd25519">generate Ed25519</button>
+          <div class="status-line"><span id="warn-ed25519" class="warn"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec2">
+      <h2>2. encrypt and sign message</h2>
+
+      <div class="row with-copy">
+        <label for="message">message</label>
+        <textarea id="message" rows="3">Hello asymmetric encryption</textarea>
+        <button id="copy" data-for="message">copy</button>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <button id="sign">sign</button>
+          <div class="row with-copy">
+            <label for="signature">signature (base64url)</label>
+            <textarea id="signature" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="signature">copy</button>
+          </div>
+          <div class="status-line"><span id="warn-sign" class="warn"></span></div>
+        </div>
+
+        <div>
+          <button id="encrypt">encrypt</button>
+          <div class="row with-copy">
+            <label for="encrypted">encrypted payload (JSON)</label>
+            <textarea id="encrypted" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="encrypted">copy</button>
+          </div>
+          <div class="status-line"><span id="warn-encrypt" class="warn"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec3">
+      <h2>3. verify and decrypt</h2>
+
+      <div class="grid-2">
+        <div>
+          <button id="verify">verify</button>
+          <div class="row with-copy">
+            <label for="verified">verified bundle</label>
+            <textarea id="verified" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="verified">copy</button>
+          </div>
+          <div class="status-line">
+            <span>signature valid: </span><span id="valid-message-signature" class="ok">n/a</span>
+          </div>
+          <div class="status-line"><span id="warn-verify" class="warn"></span></div>
+        </div>
+
+        <div>
+          <button id="decrypt">decrypt</button>
+          <div class="row with-copy">
+            <label for="decrypted">decrypted message</label>
+            <textarea id="decrypted" spellcheck="false" readonly></textarea>
+            <button id="copy" data-for="decrypted">copy</button>
+          </div>
+          <div class="status-line"><span id="warn-decrypt" class="warn"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="note">Formats: keys are JWK. Signature is base64url. Encryption is JSON with epk/salt/iv/ct.</p>
+  </div>
+
+<script>
+/* ---------- minimal helpers (pure, no DOM) ---------- */
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+const b64u = {
+  enc: (buf) => {
+    const b = Array.from(new Uint8Array(buf), x => String.fromCharCode(x)).join("");
+    const s = btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/,"");
+    return s;
+  },
+  dec: (str) => {
+    const s = str.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((str.length + 3) % 4);
+    const bin = atob(s);
+    const buf = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+};
+
+function parseJwk(text) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+function stringify(obj) { return JSON.stringify(obj, null, 2); }
+
+/* ---------- crypto core (Web Crypto) ---------- */
+/* Key generation */
+async function genOKP(curve) {
+  // returns {privJwk, pubJwk}
+  const kp = await crypto.subtle.generateKey(
+    { name: curve, namedCurve: curve },
+    true,
+    curve === "Ed25519" ? ["sign","verify"] : ["deriveKey","deriveBits"]
+  );
+  const privJwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+  const pubJwk  = await crypto.subtle.exportKey("jwk", kp.publicKey);
+  return { privJwk, pubJwk };
+}
+
+/* Import JWK to CryptoKey */
+async function importOKP(jwk, usage) {
+  if (!jwk || jwk.kty !== "OKP" || !jwk.crv) throw new Error("invalid JWK");
+  const isPriv = !!jwk.d;
+  const keyUsages = usage === "sign" ? (isPriv?["sign"]:["verify"])
+                   : usage === "derive" ? (isPriv?["deriveKey","deriveBits"]:[])
+                   : [];
+  return crypto.subtle.importKey("jwk", jwk, { name: jwk.crv, namedCurve: jwk.crv }, true, keyUsages);
+}
+
+/* Ed25519 sign/verify */
+async function ed25519Sign(privJwk, msg) {
+  const k = await importOKP(privJwk, "sign");
+  const sig = await crypto.subtle.sign({ name: "Ed25519" }, k, enc.encode(msg));
+  return b64u.enc(sig);
+}
+async function ed25519Verify(pubJwk, msg, sigB64u) {
+  const k = await importOKP(pubJwk, "sign"); // verify on same algo name
+  const ok = await crypto.subtle.verify({ name: "Ed25519" }, k, b64u.dec(sigB64u), enc.encode(msg));
+  return ok;
+}
+
+/* X25519 ECIES-like: ECDH -> HKDF-SHA256 -> AES-GCM */
+async function x25519Encrypt(recipientPubJwk, msg) {
+  const curve = "X25519";
+  const { privateKey: ephPriv, publicKey: ephPub } = await crypto.subtle.generateKey(
+    { name: curve, namedCurve: curve }, true, ["deriveKey","deriveBits"]
+  );
+
+  const recPub = await crypto.subtle.importKey("jwk", recipientPubJwk, { name: curve, namedCurve: curve }, true, []);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const info = enc.encode("X25519-AESGCM");
+
+  const shared = await crypto.subtle.deriveBits({ name: curve, public: recPub }, ephPriv, 256);
+  const hkdfBase = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt, info },
+    hkdfBase,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"]
+  );
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, enc.encode(msg));
+  const epkJwk = await crypto.subtle.exportKey("jwk", ephPub);
+
+  return stringify({
+    epk: epkJwk,                // ephemeral public key JWK
+    salt: b64u.enc(salt),
+    iv: b64u.enc(iv),
+    ct: b64u.enc(ct)
+  });
+}
+
+async function x25519Decrypt(recipientPrivJwk, payloadJson) {
+  const curve = "X25519";
+  let payload;
+  try { payload = JSON.parse(payloadJson); } catch { throw new Error("bad payload JSON"); }
+  if (!payload || !payload.epk || !payload.salt || !payload.iv || !payload.ct) throw new Error("missing fields");
+
+  const recPriv = await crypto.subtle.importKey("jwk", recipientPrivJwk, { name: curve, namedCurve: curve }, false, ["deriveKey","deriveBits"]);
+  const ephPub = await crypto.subtle.importKey("jwk", payload.epk, { name: curve, namedCurve: curve }, false, []);
+  const salt = new Uint8Array(b64u.dec(payload.salt));
+  const iv = new Uint8Array(b64u.dec(payload.iv));
+  const ct = b64u.dec(payload.ct);
+  const info = enc.encode("X25519-AESGCM");
+
+  const shared = await crypto.subtle.deriveBits({ name: curve, public: ephPub }, recPriv, 256);
+  const hkdfBase = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveKey"]);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt, info },
+    hkdfBase,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, aesKey, ct);
+  return dec.decode(pt);
+}
+
+/* Attempt public-from-private via roundtrip export (works if UA computes 'x') */
+async function derivePublicFromPrivate(jwkPriv) {
+  const curve = jwkPriv?.crv;
+  if (!curve || !jwkPriv.d) throw new Error("need private JWK");
+  try {
+    const privKey = await crypto.subtle.importKey("jwk", jwkPriv, { name: curve, namedCurve: curve }, true,
+      curve === "Ed25519" ? ["sign"] : ["deriveKey","deriveBits"]);
+    // Some UAs allow getPublicKey (not standard). Fallback: re-export private JWK and read 'x' if provided.
+    const jwk = await crypto.subtle.exportKey("jwk", privKey);
+    if (jwk.x) return { kty: "OKP", crv: curve, x: jwk.x };
+  } catch {}
+  throw new Error("cannot derive public from private here");
+}
+
+/* ---------- DOM wire-up (minimal) ---------- */
+const $ = (id) => document.getElementById(id);
+const set = (id, text) => { $(id).textContent = text; };
+const put = (id, val) => { $(id).value = val; };
+const getVal = (id) => $(id).value.trim();
+
+function warn(id, msg) { set(id, msg || ""); }
+function clearWarnings() {
+  ["warn-x25519","warn-ed25519","warn-sign","warn-encrypt","warn-verify","warn-decrypt"].forEach(id=>warn(id,""));
+}
+
+/* copy buttons */
+document.addEventListener("click", async (e) => {
+  if (e.target.matches("button#copy")) {
+    const forId = e.target.getAttribute("data-for");
+    try {
+      await navigator.clipboard.writeText(getVal(forId));
+      const old = e.target.textContent; e.target.textContent = "copied";
+      setTimeout(()=> e.target.textContent = old, 700);
+    } catch {
+      e.target.textContent = "copy failed";
+      setTimeout(()=> e.target.textContent = "copy", 1000);
+    }
+  }
+});
+
+/* Section 1: generate keys */
+$("generateX25519").addEventListener("click", async () => {
+  clearWarnings();
+  try {
+    const { privJwk, pubJwk } = await genOKP("X25519");
+    put("privatekeyX25519", stringify(privJwk));
+    put("publickeyX25519", stringify(pubJwk));
+  } catch (e) {
+    warn("warn-x25519", "X25519 unsupported here");
+  }
+});
+
+$("generateEd25519").addEventListener("click", async () => {
+  clearWarnings();
+  try {
+    const { privJwk, pubJwk } = await genOKP("Ed25519");
+    put("privatekeyEd25519", stringify(privJwk));
+    put("publickeyEd25519", stringify(pubJwk));
+  } catch (e) {
+    warn("warn-ed25519", "Ed25519 unsupported here");
+  }
+});
+
+/* When private keys change, try to refresh public keys without leaking secrets */
+$("privatekeyX25519").addEventListener("input", async () => {
+  try {
+    const jwk = parseJwk(getVal("privatekeyX25519"));
+    if (!jwk) return warn("warn-x25519", "bad JWK");
+    if (jwk.kty !== "OKP" || jwk.crv !== "X25519" || !jwk.d) return warn("warn-x25519","need X25519 private JWK");
+    try {
+      const pub = await derivePublicFromPrivate(jwk);
+      put("publickeyX25519", stringify(pub));
+      warn("warn-x25519", "");
+    } catch {
+      warn("warn-x25519", "cannot compute public; include 'x'");
+    }
+  } catch { warn("warn-x25519", "parse error"); }
+});
+
+$("privatekeyEd25519").addEventListener("input", async () => {
+  try {
+    const jwk = parseJwk(getVal("privatekeyEd25519"));
+    if (!jwk) return warn("warn-ed25519", "bad JWK");
+    if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || !jwk.d) return warn("warn-ed25519","need Ed25519 private JWK");
+    try {
+      const pub = await derivePublicFromPrivate(jwk);
+      put("publickeyEd25519", stringify(pub));
+      warn("warn-ed25519", "");
+    } catch {
+      warn("warn-ed25519", "cannot compute public; include 'x'");
+    }
+  } catch { warn("warn-ed25519", "parse error"); }
+});
+
+/* Section 2: sign and encrypt */
+$("sign").addEventListener("click", async () => {
+  clearWarnings();
+  const priv = parseJwk(getVal("privatekeyEd25519"));
+  const msg = getVal("message");
+  if (!priv || priv.crv !== "Ed25519" || !priv.d) return warn("warn-sign","need Ed25519 private JWK");
+  if (!msg) return warn("warn-sign","empty message");
+  try {
+    const sig = await ed25519Sign(priv, msg);
+    put("signature", sig);
+  } catch { warn("warn-sign","sign failed"); }
+});
+
+$("encrypt").addEventListener("click", async () => {
+  clearWarnings();
+  const pub = parseJwk(getVal("publickeyX25519"));
+  const msg = getVal("message");
+  if (!pub || pub.crv !== "X25519" || !pub.x) return warn("warn-encrypt","need X25519 public JWK");
+  if (!msg) return warn("warn-encrypt","empty message");
+  try {
+    const out = await x25519Encrypt(pub, msg);
+    put("encrypted", out);
+  } catch { warn("warn-encrypt","encrypt failed"); }
+});
+
+/* Section 3: verify and decrypt */
+$("verify").addEventListener("click", async () => {
+  clearWarnings();
+  const pub = parseJwk(getVal("publickeyEd25519"));
+  const msg = getVal("message");
+  const sig = getVal("signature");
+  if (!pub || pub.crv !== "Ed25519" || !pub.x) { warn("warn-verify","need Ed25519 public JWK"); return; }
+  if (!msg || !sig) { warn("warn-verify","need message + signature"); return; }
+  try {
+    const ok = await ed25519Verify(pub, msg, sig);
+    $("valid-message-signature").textContent = ok ? "true" : "false";
+    put("verified", stringify({ message: msg, signature: sig }));
+  } catch { warn("warn-verify","verify failed"); }
+});
+
+$("decrypt").addEventListener("click", async () => {
+  clearWarnings();
+  const priv = parseJwk(getVal("privatekeyX25519"));
+  const payload = getVal("encrypted");
+  if (!priv || priv.crv !== "X25519" || !priv.d) { warn("warn-decrypt","need X25519 private JWK"); return; }
+  if (!payload) { warn("warn-decrypt","need encrypted payload"); return; }
+  try {
+    const msg = await x25519Decrypt(priv, payload);
+    put("decrypted", msg);
+  } catch (e) { warn("warn-decrypt","decrypt failed"); }
+});
+</script>
+</body>
+</html>

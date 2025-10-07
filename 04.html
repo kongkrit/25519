@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web Crypto ECDH25519 Demo</title>
+  <style>
+    :root {
+      --fs: 1rem;
+      --pad: 1rem;
+      --gap: 1rem;
+      --br: 0.4rem;
+      --bw: 0.1rem;
+      --btn-pad-y: 0.8rem;
+      --btn-pad-x: 1.6rem;
+      --btn-fs: 1.4rem;
+      --bg-body: #202020;
+      --fg-body: #e0e0e0;
+      --bg-ta: #2e2e2e;
+      --fg-ta: #dedede;
+      --bd-ta: #484848;
+      --bg-btn: #3a3a3a;
+      --fg-btn: #dedede;
+      --bg-btn-h: #555555;
+    }
+    body { font-family: monospace, sans-serif; text-align: center; margin: 0; }
+    body { background-color: var(--bg-body); color: var(--fg-body); padding: var(--pad); }
+    textarea { background-color: var(--bg-ta); color: var(--fg-ta); border-color: var(--bd-ta); 
+               width: 100%; box-sizing: border-box; overflow-y: auto; resize: none; padding: var(--pad); border-radius: var(--br); }
+    button { background-color: var(--bg-btn); color: var(--fg-btn); font-family: monospace, sans-serif font-size: var(--btn-fs); 
+             border-radius: var(--br); padding: var(--btn-pad-y) var(--btn-pad-x); cursor: pointer; transition: background-color 0.2s ease; }
+    button:hover { background-color: var(--bg-btn-h); }
+    label { display: block; text-align: left; padding-left: 0.4rem; }
+    h2 { font-weight: normal; margin-top: 0.6rem; margin-bottom: 0.6rem; }
+  </style>
+</head>
+<body>
+  <h1>Web Crypto ECDH25519 Demo</h1>
+
+  <!-- Section 1 — generate keys -->
+  <section id="sec1">
+    <h2>1. Generate Ed25519 keys</h2>
+    <button id="generateEd25519" type="button">generate</button>
+    <label for="privatekeyEd25519">private key (pkcs8 b64url)</label>
+    <textarea id="privatekeyEd25519" rows="2" readonly></textarea>
+    <button id="copy" data-target="privatekeyEd25519" type="button">copy</button>
+
+    <label for="publickeyEd25519">public key (raw b64url)</label>
+    <textarea id="publickeyEd25519" rows="2" readonly></textarea>
+    <button id="copy" data-target="publickeyEd25519" type="button">copy</button>
+
+    <label id="warn1"></label>
+  </section>
+
+  <!-- Section 2 — sign message -->
+  <section id="sec2">
+    <h2>2. Sign</h2>
+    <label for="message">message</label>
+    <textarea id="message" rows="4">Hello message signature</textarea>
+    <button id="copy" data-target="message" type="button">copy</button>
+
+    <button id="sign" type="button">sign</button>
+    <label for="signature">signature (b64url)</label>
+    <textarea id="signature" rows="2" readonly></textarea>
+    <button id="copy" data-target="signature" type="button">copy</button>
+
+    <label id="warn2"></label>
+  </section>
+
+  <!-- Section 3 — verify -->
+  <section id="sec3">
+    <h2>3. Verify</h2>
+    <button id="verify" type="button">verify</button>
+    <label for="verified">result</label>
+    <textarea id="verified" rows="7" readonly></textarea>
+    <button id="copy" data-target="verified" type="button">copy</button>
+
+    <label id="valid-message-signature"></label>
+    <label id="warn3"></label>
+  </section>
+
+  <script>
+    // ---------- Pure logic ----------
+    const enc = new TextEncoder();
+    function toB64u(bytes) {
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+      return b64;
+    }
+    function fromB64u(b64u) {
+      const b64 = b64u.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(b64u.length/4)*4, '=');
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    }
+
+    async function generateEd25519KeyPair() {
+      const kp = await crypto.subtle.generateKey(
+        { name: 'Ed25519' },
+        true,
+        ['sign', 'verify']
+      );
+      const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', kp.privateKey));
+      const rawPub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+      return { privatePkcs8B64u: toB64u(pkcs8), publicRawB64u: toB64u(rawPub) };
+    }
+
+    async function importPrivateEd25519FromPkcs8B64u(b64u) {
+      const pkcs8 = fromB64u(b64u);
+      return crypto.subtle.importKey(
+        'pkcs8',
+        pkcs8,
+        { name: 'Ed25519' },
+        false,
+        ['sign']
+      );
+    }
+    async function importPublicEd25519FromRawB64u(b64u) {
+      const raw = fromB64u(b64u);
+      return crypto.subtle.importKey(
+        'raw',
+        raw,
+        { name: 'Ed25519' },
+        false,
+        ['verify']
+      );
+    }
+
+    async function signMessageEd25519(privKeyPkcs8B64u, message) {
+      const key = await importPrivateEd25519FromPkcs8B64u(privKeyPkcs8B64u);
+      const sig = new Uint8Array(await crypto.subtle.sign({ name: 'Ed25519' }, key, enc.encode(message)));
+      return toB64u(sig);
+    }
+
+    async function verifyMessageEd25519(pubKeyRawB64u, message, signatureB64u) {
+      const key = await importPublicEd25519FromRawB64u(pubKeyRawB64u);
+      const ok = await crypto.subtle.verify({ name: 'Ed25519' }, key, fromB64u(signatureB64u), enc.encode(message));
+      return ok;
+    }
+
+    // ---------- Minimal DOM wire-up ----------
+    const $ = (id) => document.getElementById(id);
+    document.querySelectorAll('button#copy').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const t = $(btn.dataset.target);
+        if (!t) return;
+        await navigator.clipboard.writeText(t.value);
+      });
+    });
+
+    $('generateEd25519').addEventListener('click', async () => {
+      $('warn1').textContent = '';
+      try {
+        const kp = await generateEd25519KeyPair();
+        $('privatekeyEd25519').value = kp.privatePkcs8B64u;
+        $('publickeyEd25519').value = kp.publicRawB64u;
+      } catch (e) {
+        $('warn1').textContent = 'warn: Ed25519 not available.';
+      }
+    });
+
+    $('sign').addEventListener('click', async () => {
+      $('warn2').textContent = '';
+      const msg = $('message').value;
+      const priv = $('privatekeyEd25519').value.trim();
+      if (!priv) { $('warn2').textContent = 'warn: need private key.'; return; }
+      if (!msg.length) { $('warn2').textContent = 'warn: empty message.'; return; }
+      try {
+        const sig = await signMessageEd25519(priv, msg);
+        $('signature').value = sig;
+      } catch (e) {
+        $('warn2').textContent = 'warn: bad private key.';
+      }
+    });
+
+    $('verify').addEventListener('click', async () => {
+      $('warn3').textContent = '';
+      const msg = $('message').value;
+      const pub = $('publickeyEd25519').value.trim();
+      const sig = $('signature').value.trim();
+      const fields = ['message','publickeyEd25519','signature'];
+      const missing = fields.filter(id => !$(id).value.trim());
+      if (missing.length) { $('warn3').textContent = 'warn: need message, public key, signature.'; return; }
+      try {
+        const ok = await verifyMessageEd25519(pub, msg, sig);
+        $('verified').value = [
+          'message:', msg,
+          '',
+          'signature (b64url):',
+          sig
+        ].join('\n');
+        $('valid-message-signature').textContent = ok ? 'valid: true' : 'valid: false';
+      } catch (e) {
+        $('warn3').textContent = 'warn: bad public key or signature.';
+        $('valid-message-signature').textContent = '';
+      }
+    });
+  </script>
+</body>
+</html>
