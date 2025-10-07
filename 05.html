@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web Crypto Ed25519 Demo</title>
+  <style>
+    :root {
+      --bg: #202020;
+      --fg: #e0e0e0;
+      --pad: 1rem;
+      --ta-bg: #2e2e2e;
+      --ta-fg: #dedede;
+      --ta-bc: #484848;
+      --btn-bg: #3a3a3a;
+      --btn-fg: #dedede;
+      --btn-bc: #555555;
+      --btn-pad-y: 0.8rem;
+      --btn-pad-x: 1.6rem;
+      --rad: 0.4rem;
+      --fs: 1rem;
+      --fs-btn: 1rem;
+      --gap: 1rem;
+      --plabel: 0.4rem;
+      --hspace: 0.6rem;
+    }
+    body { font-family: monospace, sans-serif; text-align: center; margin: 0; }
+    body { background-color: var(--bg); color: var(--fg); padding: var(--pad); }
+    textarea { background-color: var(--ta-bg); color: var(--ta-fg); border-color: var(--ta-bc); font-size: var(--fs);
+               width: 100%; box-sizing: border-box; overflow-y: auto; resize: none; padding: 1rem; border-radius: var(--rad); }
+    button, input { background-color: var(--btn-bg); color: var(--btn-fg); font-family: monospace, sans-serif; font-size: var(--fs-btn);
+             border-color: var(--btn-bc);
+             border-radius: var(--rad); padding: var(--btn-pad-y) var(--btn-pad-x); cursor: pointer; transition: background-color 0.2s ease; }
+    button:hover { background-color: #555555; }
+    label { display: block; text-align: left; padding-left: var(--plabel); font-size: var(--fs);}
+    h2 { font-weight: normal; margin-top: var(--hspace); margin-bottom: var(--hspace); }
+  </style>
+</head>
+<body>
+  <h1>Web Crypto Ed25519 Demo</h1>
+
+  <!-- Section 1 — generate keys -->
+  <section id="sec1">
+    <h2>1. Keys</h2>
+    
+    <div style="margin-top: var(--gap);">
+      <button id="generateEd25519">Generate Ed25519 Key Pairs</button>
+    </div>
+    <label id="warn-sec1"></label>
+    
+    <label for="privatekeyEd25519">Private Key (PKCS#8, base64)</label>
+    <textarea id="privatekeyEd25519" rows="2" placeholder="base64 PKCS#8"></textarea>
+    <div><button id="copy" data-copy-target="privatekeyEd25519">Copy</button></div>
+
+    <label for="publickeyEd25519">Public Key (raw, base64)</label>
+    <textarea id="publickeyEd25519" rows="2" placeholder="base64 raw"></textarea>
+    <div><button id="copy" data-copy-target="publickeyEd25519">Copy</button></div>
+  </section>
+
+  <p></p>
+
+  <!-- Section 2 — sign message -->
+  <section id="sec2">
+    <h2>2. Sign</h2>
+    <label for="text-message">Text</label>
+    <textarea id="text-message" rows="4">Hello message signature</textarea>
+    <div><button id="copy" data-copy-target="text-message">Copy</button></div>
+
+    <div style="margin-top: var(--gap);">
+      <button id="sign-text" value="Sign Text">Sign Text</button>
+    </div>
+
+    <label for="text-signature">Text Signature (base64)</label>
+    <textarea id="text-signature" rows="2" placeholder="base64 signature"></textarea>
+    <div><button id="copy" data-copy-target="text-signature">Copy</button></div>
+
+    <p></p>
+
+    <label for="file-input">File</label>
+    <input id="file-input" type="file" />
+    <label id="upload-info"></label>
+
+    <label for="file-signature">File Signature (base64)</label>
+    <textarea id="file-signature" rows="2" placeholder="base64 signature"></textarea>
+    <div><button id="copy" data-copy-target="file-signature">Copy</button></div>
+
+    <label id="warn-sec2"></label>
+  </section>
+
+  <p></p>
+
+  <!-- Section 3 — verify -->
+  <section id="sec3">
+    <h2>3. Verify</h2>
+    <div style="margin-top: var(--gap);">
+      <button id="verify-text">Verify Text</button>
+    </div>
+    <label for="verified-text">Verified Text</label>
+    <textarea id="verified-text" rows="7" placeholder="message + signature + status"></textarea>
+    <div><button id="copy" data-copy-target="verified-text">Copy</button></div>
+    <label id="valid-text-message-signature"></label>
+
+    <p></p>
+
+    <div style="margin-top: var(--gap);">
+      <button id="verify-file">Verify File</button>
+    </div>
+    <label for="verified-file">Verified File</label>
+    <textarea id="verified-file" rows="7" placeholder="sha256(file) + signature + status"></textarea>
+    <div><button id="copy" data-copy-target="verified-file">Copy</button></div>
+    <label id="valid-file-content-signature"></label>
+
+    <label id="warn-sec3"></label>
+  </section>
+
+  <script>
+    // ---------- Pure logic ----------
+    const b64 = {
+      enc: (buf) => {
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+      },
+      dec: (str) => {
+        const bin = atob((str || "").trim());
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+      }
+    };
+
+    async function genEd25519() {
+      const keyPair = await crypto.subtle.generateKey({ name: "Ed25519", namedCurve: "Ed25519" }, true, ["sign", "verify"]);
+      const spkiPub = await crypto.subtle.exportKey("raw", keyPair.publicKey); // 32 bytes
+      const pkcs8Priv = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey); // DER
+      return {
+        privateBase64: b64.enc(pkcs8Priv),
+        publicBase64: b64.enc(spkiPub)
+      };
+    }
+
+    async function importPrivateEd25519(pkcs8b64) {
+      const buf = b64.dec(pkcs8b64);
+      return crypto.subtle.importKey("pkcs8", buf, { name: "Ed25519", namedCurve: "Ed25519" }, false, ["sign"]);
+    }
+
+    async function importPublicEd25519(rawb64) {
+      const buf = b64.dec(rawb64);
+      return crypto.subtle.importKey("raw", buf, { name: "Ed25519", namedCurve: "Ed25519" }, false, ["verify"]);
+    }
+
+    async function signBytesEd25519(privateKey, bytes) {
+      const sig = await crypto.subtle.sign({ name: "Ed25519" }, privateKey, bytes);
+      return new Uint8Array(sig);
+    }
+
+    async function verifyBytesEd25519(publicKey, bytes, signatureBytes) {
+      return crypto.subtle.verify({ name: "Ed25519" }, publicKey, signatureBytes, bytes);
+    }
+
+    async function sha256(bytes) {
+      const hash = await crypto.subtle.digest("SHA-256", bytes);
+      return new Uint8Array(hash);
+    }
+
+    // ---------- DOM wire-up ----------
+    const $ = (id) => document.getElementById(id);
+    const set = (id, v) => ($(id).value = v);
+    const get = (id) => ($(id).value || "").trim();
+
+    function warn(id, msg) { $(id).textContent = msg; }
+
+    function attachCopy() {
+      document.querySelectorAll('button#copy').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-copy-target');
+          const el = document.getElementById(target);
+          if (el) navigator.clipboard.writeText(el.value || "");
+        });
+      });
+    }
+
+    $('generateEd25519').addEventListener('click', async () => {
+      try {
+        const { privateBase64, publicBase64 } = await genEd25519();
+        set('privatekeyEd25519', privateBase64);
+        set('publickeyEd25519', publicBase64);
+        warn('warn-sec1', '');
+      } catch (e) {
+        warn('warn-sec1', 'cannot generate');
+      }
+    });
+
+    $('sign-text').addEventListener('click', async () => {
+      warn('warn-sec2', '');
+      const msg = get('text-message');
+      const privB64 = get('privatekeyEd25519');
+      if (!msg) { warn('warn-sec2', 'need text'); return; }
+      if (!privB64) { warn('warn-sec2', 'need private key'); return; }
+      try {
+        const priv = await importPrivateEd25519(privB64);
+        const enc = new TextEncoder().encode(msg);
+        const sig = await signBytesEd25519(priv, enc);
+        set('text-signature', b64.enc(sig));
+      } catch {
+        warn('warn-sec2', 'bad private key');
+      }
+    });
+
+    $('file-input').addEventListener('change', async (ev) => {
+      warn('warn-sec2', '');
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      try {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const h = await sha256(buf);
+        const info = `file: ${file.name} | size: ${file.size} | sha256: ${b64.enc(h)}`;
+        $('upload-info').textContent = info;
+
+        const privB64 = get('privatekeyEd25519');
+        if (!privB64) { warn('warn-sec2', 'need private key for file sign'); return; }
+        const priv = await importPrivateEd25519(privB64);
+        const sig = await signBytesEd25519(priv, buf);
+        set('file-signature', b64.enc(sig));
+      } catch {
+        warn('warn-sec2', 'file read/sign failed');
+      }
+    });
+
+    $('verify-text').addEventListener('click', async () => {
+      warn('warn-sec3', '');
+      const msg = get('text-message');
+      const pubB64 = get('publickeyEd25519');
+      const sigB64 = get('text-signature');
+      if (!msg || !pubB64 || !sigB64) {
+        warn('warn-sec3', 'need message, public key, signature');
+        return;
+      }
+      try {
+        const pub = await importPublicEd25519(pubB64);
+        const enc = new TextEncoder().encode(msg);
+        const sig = new Uint8Array(b64.dec(sigB64));
+        const ok = await verifyBytesEd25519(pub, enc, sig);
+        const okMessage = ok ? 'Signature is valid' : 'ERROR: INVALID SIGNATURE';
+        set('verified-text', `message:\n${msg}\n---\nsignature: ${sigB64}\n---\n${okMessage}`);
+        $('valid-text-message-signature').textContent = ok ? 'valid' : 'invalid';
+      } catch {
+        warn('warn-sec3', 'verify error');
+      }
+    });
+
+    $('verify-file').addEventListener('click', async () => {
+      warn('warn-sec3', '');
+      const pubB64 = get('publickeyEd25519');
+      const sigB64 = get('file-signature');
+      const file = $('file-input').files && $('file-input').files[0];
+      if (!file || !pubB64 || !sigB64) {
+        warn('warn-sec3', 'need file, public key, signature');
+        return;
+      }
+      try {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        const h = await sha256(buf);
+        const pub = await importPublicEd25519(pubB64);
+        const sig = new Uint8Array(b64.dec(sigB64));
+        const ok = await verifyBytesEd25519(pub, buf, sig);
+        const okMessage = ok ? 'Signature is valid' : 'ERROR: INVALID SIGNATURE';
+        set('verified-file', `sha256(file): ${b64.enc(h)}\n---\nEd25519 public key: ${pubB64}\n---\nsignature: ${sigB64}\n--\n${okMessage}`);
+        $('valid-file-content-signature').textContent = ok ? 'valid' : 'invalid';
+      } catch {
+        warn('warn-sec3', 'verify error');
+      }
+    });
+
+    attachCopy();
+  </script>
+</body>
+</html>
