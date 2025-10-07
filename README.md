@@ -11,3 +11,5 @@ Private-Public Keygen for X25519 (encrypt) and Ed25519 (signature)
 [03](03.html) - `try new CSS style and Ed25519 signature only`
 
 [04](04.html) - `tweak more specs.`
+
+[05](05.html) - `supports calculating of Ed25519 with file upload`
